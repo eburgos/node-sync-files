@@ -10,8 +10,13 @@ module.exports = function (source, target, opts, notify) {
   opts = defaults(opts || {}, {
     "watch": false,
     "delete": false,
-    "depth": Infinity
+    "depth": Infinity,
+    "ignore": []
   });
+
+  if (!opts.ignore.some) {
+    opts.ignore = [opts.ignore];
+  }
 
   if (typeof opts.depth !== "number" || isNaN(opts.depth)) {
     notify("error", "Expected valid number for option 'depth'");
@@ -79,7 +84,7 @@ function mirror (source, target, opts, notify, depth) {
     targetStat = fs.statSync(target);
   } catch (e) {
     // Target not found? good, direct copy
-    return copy(source, target, notify);
+    return ignored(source, opts, notify) || copy(source, target, notify);
   }
 
   if (sourceStat.isDirectory() && targetStat.isDirectory()) {
@@ -102,13 +107,13 @@ function mirror (source, target, opts, notify, depth) {
   } else if (sourceStat.isFile() && targetStat.isFile()) {
     // compare update-time before overwriting
     if (sourceStat.mtime > targetStat.mtime) {
-      return copy(source, target, notify);
+      return ignored(source, opts, notify) || copy(source, target, notify);
     } else {
       return true;
     }
   } else if (opts.delete) {
     // incompatible types: destroy target and copy
-    return destroy(target, notify) && copy(source, target, notify);
+    return destroy(target, notify) && (ignored(source, opts, notify) || copy(source, target, notify));
   } else if (sourceStat.isFile() && targetStat.isDirectory()) {
     // incompatible types
     notify("error", "Cannot copy file '" + source + "' to '" + target + "' as existing folder");
@@ -129,6 +134,16 @@ function deleteExtra (fileordir, opts, notify) {
     notify("no-delete", fileordir);
     return true;
   }
+}
+
+function ignored(source, opts, notify) {
+  if (opts.ignore.some(function (pattern) {
+    return source.match(pattern);
+  })) {
+    notify("ignore", [source]);
+    return true;
+  }
+  return false;
 }
 
 function copy (source, target, notify) {

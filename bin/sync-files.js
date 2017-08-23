@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+
 "use strict";
 
 var minimist = require("minimist");
@@ -12,7 +13,7 @@ var pkg = require("../package.json");
 
 var opts = {
   "boolean": ["help", "delete", "watch", "version", "verbose", "notify-update"],
-  "string": ["depth"],
+  "string": ["depth", "ignore"],
   "alias": {
     "help": "h",
     "watch": "w",
@@ -29,7 +30,8 @@ var opts = {
     "version": "Show version and exit",
     "verbose": "Moar output",
     "notify-update": "Enable update notification",
-    "depth": "Maximum depth if you have performance issues (not everywhere yet: only on existing mirrors and watch scenario)"
+    "depth": "Maximum depth if you have performance issues (not everywhere yet: only on existing mirrors and watch scenario)",
+    "ignore": "array of items to ignore"
   },
   "default": {
     "help": false,
@@ -37,7 +39,8 @@ var opts = {
     "delete": true,
     "verbose": false,
     "notify-update": true,
-    "depth": Infinity
+    "depth": Infinity,
+    "ignore": []
   },
   "stopEarly": true,
   "unknown": function onUnknown (option) {
@@ -126,7 +129,8 @@ var root = process.cwd();
 sync(path.resolve(argv._[0]), path.resolve(argv._[1]), {
   "watch": argv.watch,
   "delete": argv.delete,
-  "depth": Number(argv.depth)
+  "depth": Number(argv.depth),
+  "ignore": argv.ignore
 }, function (event, data) {
   var priority = notifyPriority[event] || "low";
 
@@ -159,6 +163,10 @@ sync(path.resolve(argv._[0]), path.resolve(argv._[1]), {
 
     case "no-delete":
       console.log("%s: %s extraneous but not deleted (use %s)", chalk.bold.dim("IGNORED"), chalk.yellow(path.relative(root, data)), chalk.blue("--delete"));
+      break;
+
+    case "ignore":
+      console.log("%s: %s", chalk.yellow("Ignored"), chalk.red(data[0]));
       break;
 
     // Fallback: forgotten logs, displayed only in verbose mode
