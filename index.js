@@ -14,8 +14,24 @@ module.exports = function (source, target, opts, notify) {
     "ignore": []
   });
 
-  if (!opts.ignore.some) {
+  if (opts.ignore && !opts.ignore.some) {
     opts.ignore = [opts.ignore];
+  }
+  opts.ignore.forEach(function (o, idx) {
+    opts.ignore[idx] = new RegExp(o);
+  });
+  if (opts.ignore.length) {
+    opts.copyOptions = {
+      filter: function (source) {
+		  if (opts.ignore.some(function (pattern) {
+				  return source.match(pattern);
+			  })) {
+			  notify("ignore", [source]);
+			  return false;
+		  }
+		  return true;
+      }
+    };
   }
 
   if (typeof opts.depth !== "number" || isNaN(opts.depth)) {
@@ -51,7 +67,7 @@ module.exports = function (source, target, opts, notify) {
 
 function watcherCopy (source, target, opts, notify) {
   return function (f, stats) {
-    copy(f, path.join(target, path.relative(source, f)), notify);
+    copy(f, path.join(target, path.relative(source, f)), notify, opts);
   };
 }
 
@@ -84,7 +100,7 @@ function mirror (source, target, opts, notify, depth) {
     targetStat = fs.statSync(target);
   } catch (e) {
     // Target not found? good, direct copy
-    return ignored(source, opts, notify) || copy(source, target, notify);
+    return ignored(source, opts, notify)?true:copy(source, target, notify, opts);
   }
 
   if (sourceStat.isDirectory() && targetStat.isDirectory()) {
@@ -95,7 +111,7 @@ function mirror (source, target, opts, notify, depth) {
 
     // copy from source to target
     var copied = fs.readdirSync(source).every(function (f) {
-      return mirror(path.join(source, f), path.join(target, f), opts, notify, depth + 1);
+      return ignored(path.join(source, f), opts, notify)?true:mirror(path.join(source, f), path.join(target, f), opts, notify, depth + 1);
     });
 
     // check for extraneous
@@ -107,13 +123,13 @@ function mirror (source, target, opts, notify, depth) {
   } else if (sourceStat.isFile() && targetStat.isFile()) {
     // compare update-time before overwriting
     if (sourceStat.mtime > targetStat.mtime) {
-      return ignored(source, opts, notify) || copy(source, target, notify);
+      return ignored(source, opts, notify)?true:copy(source, target, notify, opts);
     } else {
       return true;
     }
   } else if (opts.delete) {
     // incompatible types: destroy target and copy
-    return destroy(target, notify) && (ignored(source, opts, notify) || copy(source, target, notify));
+    return destroy(target, notify) && (ignored(source, opts, notify)?true:copy(source, target, notify, opts));
   } else if (sourceStat.isFile() && targetStat.isDirectory()) {
     // incompatible types
     notify("error", "Cannot copy file '" + source + "' to '" + target + "' as existing folder");
@@ -146,10 +162,10 @@ function ignored(source, opts, notify) {
   return false;
 }
 
-function copy (source, target, notify) {
+function copy (source, target, notify, opts) {
   notify("copy", [source, target]);
   try {
-    fs.copySync(source, target);
+    fs.copySync(source, target, opts.copyOptions);
     return true;
   } catch (e) {
     notify("error", e);

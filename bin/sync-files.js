@@ -134,7 +134,7 @@ sync(path.resolve(argv._[0]), path.resolve(argv._[1]), {
 }, function (event, data) {
   var priority = notifyPriority[event] || "low";
 
-  if (!opts.verbose && priority === "low") {
+  if (!argv.verbose && priority === "low") {
     return;
   }
 
